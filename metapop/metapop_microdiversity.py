@@ -573,6 +573,11 @@ def run_microdiversity(output_dir: str, ref_fasta: str, ref_genes: str,
         # Calculate codon position summary
         codon_pos = calculate_codon_position_summary(microdiv_data)
 
+        # Calculate contig-level microdiversity
+        contig_microdiv = calculate_contig_level_microdiversity(
+            microdiv_data, contig_lengths, tajima_params, sub_samp
+        )
+
         # Save outputs
         output_path = os.path.join(metapop_dir, "10.Microdiversity")
         os.makedirs(output_path, exist_ok=True)
@@ -586,6 +591,12 @@ def run_microdiversity(output_dir: str, ref_fasta: str, ref_genes: str,
         if len(codon_pos) > 0:
             codon_pos.to_csv(
                 os.path.join(output_path, "global_codon_position_summary.tsv"),
+                sep='\t', index=False
+            )
+
+        if len(contig_microdiv) > 0:
+            contig_microdiv.to_csv(
+                os.path.join(output_path, "global_contig_microdiversity.tsv"),
                 sep='\t', index=False
             )
 
