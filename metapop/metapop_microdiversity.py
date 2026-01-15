@@ -583,7 +583,9 @@ def run_microdiversity(output_dir: str, ref_fasta: str, ref_genes: str,
         os.makedirs(output_path, exist_ok=True)
 
         if len(microdiv_data) > 0:
-            microdiv_data.to_csv(
+            # Drop sample_prop column to maintain column order compatibility with FST
+            output_data = microdiv_data.drop(columns=['sample_prop'], errors='ignore')
+            output_data.to_csv(
                 os.path.join(output_path, "global_raw_microdiversity_data_snp_loci_only.tsv"),
                 sep='\t', index=False
             )
