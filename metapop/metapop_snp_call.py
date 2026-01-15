@@ -868,8 +868,8 @@ def associate_genes(directory, consensus, inputs, min_obs, min_pct, genes_file):
 	updated_genomes.close()
 	OG_genomes.close()
 		
-	#R scripts are the only things that are going to use these, so dirs can be relative.
-	return "MetaPop/01.Genomes_and_Genes/base_corrected_genomes.fa", "MetaPop/01.Genomes_and_Genes/base_corrected_genes.fa"
+	# Return absolute paths for use by both R and Python code
+	return os.path.normpath(directory + "/MetaPop/01.Genomes_and_Genes/base_corrected_genomes.fa"), os.path.normpath(directory + "/MetaPop/01.Genomes_and_Genes/base_corrected_genes.fa")
 	
 
 
