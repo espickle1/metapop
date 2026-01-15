@@ -256,10 +256,9 @@ def produce_default_normalization_file(directory_base, sample_path, threads):
 		
 	else:
 		print("Automatically generated normalization file already found!")
-	
-	relative_norm_file_path = "MetaPop/00.Log_and_Parameters/normalized_counts.txt"
-	
-	return relative_norm_file_path
+
+	# Return absolute path for Python compatibility
+	return norm_file_path
 	
 	
 def get_base_names(bams):
