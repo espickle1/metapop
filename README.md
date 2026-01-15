@@ -1,190 +1,367 @@
+# MetaPop - Python Edition
 
-# MetaPop #
-A pipeline for the macro- and micro-diversity analyses and visualization of metagenomic-derived populations<br/><br/>
+A pipeline for macro- and micro-diversity analyses of metagenomic-derived populations.
 
-Please email gregory.392(at)osu.edu and kenji.gerhardt(at)gmail.com for issues.
+**This is a modernized fork** of the [original MetaPop](https://github.com/metaGmetapop/metapop) with significant improvements for ease of use, particularly on Google Colab.
 
-****2023: We're currently doing a major overhaul of the pipeline into Nextflow, so updates on this version have been stalled**** 
+---
 
-Description
----------------
+## What's New in This Fork
 
-MetaPop is a pipeline designed to facilitate the processing of sets of short read data mapped to reference genomes with the twin aims of calculating sample-level diversity metrics such as abundance, population diversity, and similarity across multiple samples, and assessing within-species diversity through the assessment of nucleotide polymorphisms and amino acid substitutions. To further facilitate understanding, the pipeline also produces graphical summaries of its results.
+This fork replaces R dependencies with pure Python implementations, making the pipeline:
 
-Although it can be run in a single command, MetaPop is divided into 4 modules: (1) Preprocessing, (2) Microdiversity, (3) Macrodiversity, and (4) Visualization. 
+- **Easier to install** - No R packages required
+- **Cloud-ready** - Optimized for Google Colab with interactive notebook
+- **More reliable** - Fixed path handling issues for cross-platform compatibility
+- **Faster setup** - Fewer dependencies, simpler installation
 
-The preprocessing module is mandatory for the other modules, but also independently allows for a user to filter their reads for length, quality of alignment as measured through percent identity, and to calculate the depth and breadth of coverage on genomes within each sample. More details on these processes  are available in section 4 of this document. 
+### Key Changes from Original
 
-The macrodiversity module will calculate normalized abundances of species across all of the samples in a dataset and will calculate and visualize the results of a wide range of diversity indices. Included indices are available in section 4 of this document.
+| Feature | Original | This Fork |
+|---------|----------|-----------|
+| Microdiversity calculation | R scripts | Python (pandas/numpy) |
+| Macrodiversity calculation | R scripts | Python (pandas/scipy) |
+| FST calculation | R scripts | Python |
+| Codon bias analysis | R scripts | Python |
+| Path handling | Relative (R setwd) | Absolute paths |
+| Colab support | Limited | Full support with interactive notebook |
 
-The microdiversity module identifies single nucleotide polymorphism (SNP) loci and performs quality assessments of these loci to ensure their accuracy. Where variant loci occur on predicted genes, MetaPop assigns the loci to all genes on which they fall, and updates the base calls of both the original reference genomes and gene calls to an all-sample consensus at each variant locus. Next, codons containing multiple SNP loci are assessed for co-occurrence to determine amino acid behavior more accurately, with more detail available in section 4. Finally, the result of these preparatory steps are used to calculate within-genome diversity measures per sample, details of which are available in section 4.
+---
 
-The visualization module contains a component designed to summarize preprocessing and a component designed to visualize microdiversity results. The preprocessing component includes a report of the counts of reads retained and removed in each sample, and a per-sample assessment of the depth and breadth of coverage of each genome within the sample. The microdiversity component contains plots of the depth of coverage over the length of each genome, nucleotide diversity statistics measured on each gene, and interpretations of selective pressure for each genome of each sample. It also produces a summary of codon usage bias observed in each genome to provide a starting point for assessing horizontally transferred genes.
+## Description
 
-Installation
----------------
+MetaPop analyzes metagenomic data to assess diversity at both the sample level (macrodiversity) and within-population level (microdiversity).
 
-MetaPop is a combination of python and R scripts which makes additional calls to a variety of external tools and command line utilities. It is expected to be run from within a unix environment. A unix environment can be accessed through a natively unix system, a virtual machine, or an appropriate platform such as the windows ubuntu terminal.
+### Pipeline Modules
 
-In order to run MetaPop, a user will require the following software:<br/>
-Python 3.6+<br/>
-R<br/>
-Samtools 1.9<br/>
-BCFTools<br/>
-Prodigal<br/>
+1. **Preprocessing** - Filter reads by quality, length, and percent identity; calculate coverage metrics
+2. **Microdiversity** - Identify SNPs, calculate nucleotide diversity (pi, theta), Tajima's D, pN/pS ratios
+3. **Macrodiversity** - Compute normalized abundances, alpha diversity indices, beta diversity distances
+4. **Visualization** - Generate plots and summary figures
 
-The following Python packages are required:<br/>
-Pysam<br/>
-Numpy<br/>
+### Diversity Metrics Calculated
 
-Additionally, the following R packages are required:<br/>
-doParallel<br/>
-data.table<br/>
-stringr<br/>
-ggplot2<br/>
-ggrepel<br/>
-cowplot<br/>
-vegan<br/>
-compositions<br/>
-pheatmap<br/>
-RColorBrewer<br/>
-bit64<br/>
-gggenes<br/>
+**Alpha Diversity:**
+- Richness, Chao index, ACE index
+- Shannon's H, Simpson's index, Inverse Simpson's
+- Fisher alpha diversity, Pielou's J evenness
 
-MetaPop has been packaged with conda and pip. To use Metapop, we recommend first creating a conda environment. To set up a conda environment, the user must first install anaconda or miniconda (<https://docs.anaconda.com/anaconda/install/>) on your unix system. Then the user can create a conda environment. <br/>
+**Beta Diversity:**
+- Bray-Curtis dissimilarity
+- Jaccard distances
+- Center Log Ratio (CLR) Euclidean distances
 
-`conda create --name metapop python=3.7`<br/>
-`conda activate metapop`<br/>
-`conda install -y -c conda-forge mamba`<br/>
-`mamba install -y bcftools samtools prodigal numpy pysam r-ggrepel r-base r-data.table r-ggplot2 r-rcolorbrewer r-doparallel r-cowplot r-bit64 r-gggenes r-stringr r-vegan r-compositions r-pheatmap -c bioconda -c conda-forge -c r`<br/>
-`pip install metapop`<br/>
+**Microdiversity:**
+- Pi (nucleotide diversity)
+- Watterson's Theta
+- Tajima's D
+- pN/pS ratio (selection pressure)
+- Fixation index (Fst)
 
-MetaPop can also be used on iVirus, as part of Cyverse (<https://de.cyverse.org/apps/agave/MetaPop-1.0.0>)
+---
 
-Usage
----------------
+## Quick Start: Google Colab (Recommended)
 
-MetaPop’s function is contained within a python script designed to be run from the command line. Usage should always start with metapop, with arguments that follow:
+The easiest way to run MetaPop is through our interactive Colab notebook.
 
-`metapop --input_samples [BAM file directory] --reference [path to reference genome file] --norm [library counts normalization file] [OPTIONS]`
+### Step 1: Open the Notebook
 
-Entering this command on the command line will process the mapped reads in the directory specified by -dir, with the file the reads were mapped against specified by -assem, and a tab-delimited file containing sample names and library read counts with -ct.
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/espickle1/metapop/blob/main/notebooks/MetaPop_Colab.ipynb)
 
-Arguments:<br/>
+Or manually:
+1. Go to [Google Colab](https://colab.research.google.com)
+2. File → Open notebook → GitHub
+3. Enter: `https://github.com/espickle1/metapop`
+4. Select `notebooks/MetaPop_Colab.ipynb`
 
-Mandatory arguments:<br/>
-`--input_samples` : Directory containing mapped read files in BAM format (files do not need to be sorted and indexed)<br/>
-`--reference` : Absolute path to assembled contigs<br/>
-`--norm` : Absolute path to counts normalization file in tsv format (only mandatory if performing macrodiversity calculations)<br/>
+### Step 2: Prepare Your Data
 
-To convert SAM to BAM files, you can use the following command once you activate your conda environment:<br/>
-`samtools view -S -b sample.sam > sample.bam`
+Upload your data to Google Drive with this structure:
 
-ct file example <br/>
-(EXCLUDE *.bam* suffix & table headers below) <br/>
-BAM File Names  | Number Reads or Bps in Read Library
-------------- | -------------
-readlibrary1  | 52000000 
-readlibrary2 | 43000000
-readlibrary3  | 73000000
+```
+My Drive/
+└── metapop_data/
+    ├── bams/                    # Your BAM files
+    │   ├── sample1.bam
+    │   ├── sample2.bam
+    │   └── ...
+    └── references/              # Reference FASTA files
+        └── reference_genomes.fna
+```
 
-Program options:<br/>
-`--preprocess_only` : Flag indicating to filter reads for %ID, length, and depth of coverage and stop.<br/>
-`--no_micro --no_macro` : 2 Flags indicating to only perform preprocess <br/>
-`--micro_only` : Flag indicating to perform only macrodiversity calculations. Assumes preprocess has been done.<br/>
-`--macro_only` : Flag indicating to perform only microdiversity calculations. Assumes preprocess has been done.<br/>
-`--viz_only` : Flag indicating to only produce visualizations. Assumes preprocess has been done.<br/>
-`--no_micro` : Flag indicating to skip microdiversity and only perform preprocess and macrodiversity<br/>
-`--no_macro`:  Flag indicating to skip macrodiversity and only perform preprocess and microdiversity<br/>
-`--no_viz` : Flag indicating to not attempt to visualize results.<br/>
-`--threads` INT : Number of threads to parallelize processes for. Default 4.<br/>
+**Requirements:**
+- **BAM files**: Aligned reads (sorted/unsorted - MetaPop will sort them)
+- **Reference FASTA**: The genome(s) your reads were aligned to (`.fa`, `.fasta`, or `.fna`)
 
-Preprocessing Arguments:<br/>
-`--genes` : absolute path to prodigal FASTA format gene file for assembled contigs. May be left absent if you want metapop to generate this file. Please note if you supply your own gene file, the header for each gene in the fasta format neeeds to be in prodigal format.<br/><br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Prodigal FASTA header format example:<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`>contig1234_1 # 2 # 181 # 1 # ID=1_1;partial=10;start_type=Edge;rbs_motif=None;rbs_spacer=None;gc_cont=0.628`<br/>
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;`>contig name_gene number # start position # end position # template(1) or antisense(-1) strand # NA`<br/><br/>
-`--id_min` INT : reads below this percent identity (mismatch/alignment length) are removed. Use -global to calculate as (mismatch/read length). Default 95.<br/>
-`--min_len` INT : reads with alignments shorter than this are removed. Default 30.<br/>
-`--min_cov` INT : contigs with breadth of coverage (#bases covered/contig length) less than this are removed from microdiversity. Default 20. <br/>
-`--min_dep` INT : contigs with truncated average depth of coverage (mean of the 10th - 90th percentile depths of coverage) less than this are removed from microdiversity. Default 10.<br/>
-`--trunc` INT : sets the percentiles at which depths of coverage will be truncated for depth. Default 10.<br/>
-`--global` FLAG : Flag indicating to calculate percent identity using read length instead of alignment length.<br/>
+### Step 3: Run the Notebook
 
-Variant Calling Arguments:<br/>
-`--ref_sample` STRING : prefix of sample to be used as the SNP reference point for all other samples. A prefix is the set of characters before .bam extension in a sample, e.g. a_file.bam has prefix a_file.<br/>
-`--min_obs` INT : Minimum number of observations of a variant allele at a particular locus for it to be called a SNP. Default 4<br/>
-`--min_pct` INT : Minimum percent of the population a variant allele at a particular locus must represent for it to be called a SNP. Default 1<br/>
-`--min_qual` INT : Minimum PHRED score for a base to be used in initial variant calling. Default 20.<br/>
+1. **Run Cell 1** - Install dependencies (~2-3 minutes)
+2. **Run Cell 2** - Mount Google Drive (authorize access)
+3. **Run Cell 3** - Import libraries
+4. **Configure paths** - Update the directory paths to match your data
+5. **Adjust parameters** - Use the interactive sliders
+6. **Click "Run MetaPop"** - Start the pipeline
 
-Microdiversity Arguments:<br/>
-`--subsample_size` INT : SNP loci will be subsampled proportionallydown to this depth of coverage for microdiversity calculations. Default 10.<br/>
+### Step 4: View Results
 
-Macrodiversity Arguments:<br/>
-`--subsample_size` FLAG : Assumes that each contig supplied is a complete bacterial genome. Lowers the threshold of detection from 70% coverage to 20% coverage.<br/>
-`--minimum_bases_for_detection` INT : Minimum number of positions required to be covered for a contig to be considered detected. Default 5000.<br/>
+Results are saved to your specified output directory:
 
-Visualization arguments:<br/>
-`--plot_all` FLAG : Metapop will print all contigs from microdiversity results. This will likely take a long time. Default prints top 3 genomes by highest % of genes under positive selection in each sample.<br/>
-`--snp_scale` [local, global, both] : Metapop will print microdiversity results using SNPs assessed at the local (per sample) or global (across all samples) levels, or both. Defaults to local.<br/>
+```
+metapop_results/
+└── MetaPop/
+    ├── 00.Log_and_Parameters/     # Run logs and settings
+    ├── 01.Genomes_and_Genes/      # Processed reference files
+    ├── 02.Filtered_Samples/       # Quality-filtered BAM files
+    ├── 03.Breadth_and_Depth/      # Coverage statistics
+    ├── 05.Variant_Calls/          # Raw variant calls
+    ├── 07.Cleaned_SNPs/           # Filtered SNP data
+    ├── 08.Codon_Bias/             # Codon usage analysis
+    ├── 09.Linked_SNPs/            # Multi-SNP codon analysis
+    ├── 10.Microdiversity/         # Pi, theta, Tajima's D, pN/pS
+    ├── 11.Macrodiversity/         # Abundance tables, diversity indices
+    └── 12.Visualizations/         # Generated plots (PDF)
+```
 
-Test Data
----------------
+---
 
-A test dataset and the expected results are available on iVirus for download: <https://datacommons.cyverse.org/browse/iplant/home/shared/iVirus/MetaPop_Testdata><br/>
+## Local Installation
 
-Function Details
----------------
+### Requirements
 
-Several sections of MetaPop’s code perform functions which are difficult to briefly describe. In order to organize this README better, more complete descriptions of complex function behavior and their relevant user arguments are placed here instead of with their briefer descriptions in other sections.
+- Python 3.8+
+- samtools
+- bcftools
+- prodigal
 
-Preprocessing Module:<br/>
-The preprocessing component of MetaPop is aimed at filtering datasets for high quality reads, then identifying the genomes which are well-covered using only these reads.
+### Install via pip
 
-The first filter applied is for alignment length. Reads which themselves are short, or which align only over small portions of their length are more likely to be spurious. MetaPop removes reads with alignments shorter than 30 bp by default, which can be modified with the -min option.
+```bash
+# Install system dependencies (Ubuntu/Debian)
+sudo apt-get install samtools bcftools prodigal
 
-Percent identity is then calculated on the remaining reads as the number of base pairs within a read which match the reference genome divided by the length of the alignment (or the entire length of the read if the -global flag is set). By default, reads mapping at less than 95% identity will be removed, but this value can be changed with the -id argument.
+# Install MetaPop
+pip install git+https://github.com/espickle1/metapop.git
+```
 
-Depth and breadth of coverage per genome are then calculated using only reads passing these initial two filters. Breadth of coverage is simply the percent bases in a genome covered by at least 1 read. Depth, however, is calculated as Truncated Average Depth (TAD) which is more complex.
+### Install via conda
 
-To calculate TAD, depth is counted for every position in the genome (including zeroes), and then these counts are sorted. The bottom and top 10% of depths are removed (e.g. in a 100 bp genome, the lowest 10 and highest 10 depths would be removed) and the average is taken over the middle 80%. This approach provides for robustness against spurious read recruitment to highly conserved regions of the genome and toward genomes with low breadth of coverage. The quantiles at which reads are truncated (default 10) may be set at different values using the -trunc argument.
+```bash
+# Create environment
+conda create -n metapop python=3.10
+conda activate metapop
 
-Macrodiversity Indices:<br/>
-The macrodiversity module calculates the following indices of sample-level diversity statistics from abundance data created during preprocessing:
+# Install dependencies
+conda install -c bioconda samtools bcftools prodigal
+pip install git+https://github.com/espickle1/metapop.git
+```
 
-Alpha diversity:<br/>
--Raw abundance counts<br/>
--Abundance counts normalized across samples of different sizes<br/>
--Chao diversity index<br/>
--ACE index<br/>
--Shannon’s H<br/>
--Simpson’s index<br/>
--Inverse Simpson’s<br/>
--Fisher alpha diversity<br/>
--Peilou’s J<br/>
+---
 
-Beta diversity:<br/>
--Bray-Curtis dissimilarity<br/>
--Center Log Ratio Euclidean distances<br/>
--Jaccard distances<br/>
+## Command Line Usage
 
-SNP Linking:<br/>
-During the calling of SNPs, MetaPop assigns SNPs to their respective genes, and notes their positions within each gene in terms of the codons to which they belong and their positions in the codons. While the positions within the codons are used to ensure that gene and SNP calls are behaving as expected and producing more SNPs in the 3rd positions of codons when compared the first or second positions, MetaPop also notes when 2 or more SNPs occur on the same codon.
+```bash
+metapop --input_samples /path/to/bams \
+        --reference /path/to/references \
+        --output /path/to/output \
+        [OPTIONS]
+```
 
-When two or more SNPs are located on the same codon of the same gene, MetaPop directly examines the reads in each sample to determine the precise behavior of that codon in each sample. Because even short reads are likely to fully contain individual codons, MetaPop is able to determine if the SNPs occurring on the same codon are occurring simultaneously on the same reads (indicating that the variant codon is the composite of these two SNP loci), or whether the SNPs are mutually exclusive (indicating two distinct variants), or whether they occasionally co-occur and occasional occur separately.
+### Required Arguments
 
-The amino acids resulting from the codons examined in this process are retained for the later calculation of the ratio of synonymous and non-synonymous mutations. This renders these calculations reflective of the actual behavior of the variant sites, rather than approximations.
+| Argument | Description |
+|----------|-------------|
+| `--input_samples` | Directory containing BAM files |
+| `--reference` | Directory containing reference FASTA file(s) |
+| `--output` | Output directory (will be created if needed) |
 
-Microdiversity Indices:<br/>
-The microdiversity module of MetaPop utilizes the SNP calls and linked SNP data generated earlier to quantify nucleotide diversity within each genome and to assess evidence of selective pressures being applied to genes on each genome. 
+### Optional Arguments
 
-Microdiversity calculations are divided into local and global scales, with the local scale representing the set of variant loci identified independently within each sample, and the global scale representing the set of variant loci identified over a genome across all samples.
+**Module Control:**
 
-Microdiversity indices include:<br/>
--Pi nucleotide diversity<br/>
--Watterson’s Theta nucleotide diversity<br/>
--Tajima’s D<br/>
--pN/pS ratio of non-synonymous to synonymous mutations<br/>
--Codon usage biases of genes on each genome<br/>
--Fixation index (Fst) between samples where the same genome is observed at sufficient depth of coverage<br/>
+| Argument | Description |
+|----------|-------------|
+| `--no_micro` | Skip microdiversity analysis |
+| `--no_macro` | Skip macrodiversity analysis |
+| `--no_viz` | Skip visualization generation |
+| `--preprocess_only` | Only run preprocessing |
+| `--micro_only` | Only run microdiversity (requires prior preprocessing) |
+| `--macro_only` | Only run macrodiversity (requires prior preprocessing) |
 
+**Preprocessing Parameters:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--id_min` | 95 | Minimum percent identity for read filtering |
+| `--min_len` | 30 | Minimum alignment length (bp) |
+| `--min_cov` | 20 | Minimum breadth of coverage (%) |
+| `--min_dep` | 10 | Minimum truncated average depth |
+| `--trunc` | 10 | Truncation percentile for TAD calculation |
+
+**Variant Calling Parameters:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--min_obs` | 4 | Minimum observations to call a SNP |
+| `--min_pct` | 1 | Minimum population % for SNP call |
+| `--min_qual` | 20 | Minimum PHRED quality score |
+| `--ref_sample` | (none) | Sample to use as reference for SNPs |
+
+**Other Options:**
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--threads` | auto | Number of parallel threads |
+| `--genes` | (auto) | Pre-computed gene predictions (Prodigal format) |
+| `--norm` | (auto) | Library normalization file |
+| `--subsample_size` | 10 | Subsampling depth for diversity calculations |
+
+### Example Commands
+
+**Full analysis:**
+```bash
+metapop --input_samples ./bams --reference ./refs --output ./results --threads 8
+```
+
+**Preprocessing only:**
+```bash
+metapop --input_samples ./bams --reference ./refs --output ./results --preprocess_only
+```
+
+**Skip macrodiversity:**
+```bash
+metapop --input_samples ./bams --reference ./refs --output ./results --no_macro
+```
+
+**Stringent filtering:**
+```bash
+metapop --input_samples ./bams --reference ./refs --output ./results \
+        --id_min 98 --min_cov 50 --min_dep 20
+```
+
+---
+
+## Input File Formats
+
+### BAM Files
+
+Standard BAM format from any aligner (bowtie2, BWA, minimap2, etc.).
+
+- Files do NOT need to be sorted or indexed (MetaPop handles this)
+- File names become sample identifiers (e.g., `sample1.bam` → "sample1")
+
+### Reference FASTA
+
+Standard FASTA format with contig/genome sequences.
+
+```
+>contig_name_1
+ATCGATCGATCG...
+>contig_name_2
+GCTAGCTAGCTA...
+```
+
+**Important:** Sequence names must match the reference used for alignment.
+
+### Normalization File (Optional)
+
+Tab-separated file with sample names and library sizes:
+
+```
+sample1	52000000
+sample2	43000000
+sample3	73000000
+```
+
+If not provided, MetaPop auto-generates this from BAM read counts.
+
+### Gene Predictions (Optional)
+
+Prodigal-format FASTA file. If not provided, MetaPop runs Prodigal automatically.
+
+```
+>contig1_1 # 2 # 181 # 1 # ID=1_1;partial=10;start_type=Edge;...
+ATGCGATCGATCG...
+```
+
+---
+
+## Output Files
+
+### Key Results Files
+
+| File | Description |
+|------|-------------|
+| `11.Macrodiversity/Alpha_diversity_stats.tsv` | Alpha diversity metrics per sample |
+| `11.Macrodiversity/normalized_abundances_table.tsv` | Normalized abundance matrix |
+| `11.Macrodiversity/Beta_diversity_*.tsv` | Beta diversity distance matrices |
+| `10.Microdiversity/global_gene_microdiversity.tsv` | Gene-level diversity metrics |
+| `10.Microdiversity/global_contig_microdiversity.tsv` | Contig-level diversity metrics |
+| `07.Cleaned_SNPs/genic_snps.tsv` | All identified SNPs in genes |
+| `03.Breadth_and_Depth/*_breadth_and_depth.tsv` | Coverage statistics per sample |
+
+### Visualization PDFs
+
+| File | Contents |
+|------|----------|
+| `12.Visualizations/preprocessing_summaries.pdf` | Read filtering statistics |
+| `12.Visualizations/alpha_diversity_scatterplots.pdf` | Alpha diversity plots |
+| `12.Visualizations/PCoA_*.pdf` | Principal coordinate analysis |
+| `12.Visualizations/codon_bias_plots.pdf` | Codon usage analysis |
+
+---
+
+## Troubleshooting
+
+### Common Issues
+
+**"FileNotFoundError: MetaPop/..."**
+- This indicates a path issue. Make sure you're using the latest version:
+  ```bash
+  pip install --upgrade --force-reinstall git+https://github.com/espickle1/metapop.git
+  ```
+
+**"No BAM files found"**
+- Verify your BAM directory path is correct
+- Check that files have `.bam` extension (case-sensitive on Linux)
+
+**"Reference directory not found"**
+- The `--reference` argument should be a DIRECTORY containing FASTA files, not a file path
+
+**Pipeline hangs or runs very slowly**
+- Reduce thread count if running on limited resources
+- For large datasets, consider running on a machine with more RAM
+
+**Memory errors**
+- Large BAM files require significant RAM
+- Try processing fewer samples at once
+- Use a machine with more memory (Colab Pro offers 25GB+)
+
+### Getting Help
+
+- **Issues:** [GitHub Issues](https://github.com/espickle1/metapop/issues)
+- **Email:** James.Chang@bcm.edu
+
+---
+
+## Citation
+
+If you use MetaPop in your research, please cite the original publication:
+
+> [Original MetaPop citation - check the original repository]
+
+And mention this fork if you used the Python/Colab version:
+
+> MetaPop Python Edition: https://github.com/espickle1/metapop
+
+---
+
+## License
+
+This project is licensed under the same terms as the original MetaPop repository.
+
+---
+
+## Acknowledgments
+
+- Original MetaPop developers at Ohio State University
+- Contributors to this Python port
