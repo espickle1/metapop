@@ -4,5 +4,6 @@
       "Bash(grep:*)",
       "Bash(wc:*)"
     ]
-  }
+  },
+  "outputStyle": "Explanatory"
 }
