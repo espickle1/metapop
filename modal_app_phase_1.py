@@ -5,15 +5,15 @@ Runs the entire MetaPop pipeline as a single Modal function.
 No existing MetaPop code is modified.
 
 Usage:
-    # Upload data to Modal Volume
-    modal volume put metapop-data ./local_bams /bams
-    modal volume put metapop-data ./local_refs /refs
+    # Upload BAM directory and reference FASTA to Modal Volume
+    modal volume put metapop-data /path/to/bam_dir /bams
+    modal volume put metapop-data /path/to/ref.fasta /ref.fasta
 
     # Run full pipeline (all MetaPop flags are passed through)
-    modal run modal_app_phase_1.py --input-samples /data/bams --reference /data/refs --output /data/results --threads 8
+    modal run modal_app_phase_1.py --input-samples /data/bams --reference /data/ref.fasta --output /data/results --threads 8
 
-    # Run with flags
-    modal run modal_app_phase_1.py --input-samples /data/bams --reference /data/refs --output /data/results --preprocess-only
+    # Run with preprocessing only
+    modal run modal_app_phase_1.py --input-samples /data/bams --reference /data/ref.fasta --output /data/results --preprocess-only
 
     # Download results
     modal volume get metapop-data /results ./local_results
