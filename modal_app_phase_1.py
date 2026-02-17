@@ -90,6 +90,7 @@ def main(
     min_pct: float = 1,
     ref_sample: str = "",
     subsample_size: int = 10,
+    library: str = "",
     # Macrodiversity options
     whole_genomes: bool = False,
     genome_detection_cutoff: int = 0,
@@ -105,6 +106,7 @@ def main(
     viz_only: bool = False,
     skip_preproc: bool = False,
     skip_snp_calling: bool = False,
+    just_codon_bias: bool = False,
 ):
     if not input_samples:
         print("MetaPop needs aligned reads. Provide --input-samples.")
@@ -140,6 +142,8 @@ def main(
         cli_args += ["--norm", norm]
     if ref_sample:
         cli_args += ["--ref_sample", ref_sample]
+    if library:
+        cli_args += ["--library", library]
 
     # Boolean flags (only include if True)
     if is_global:
@@ -162,6 +166,8 @@ def main(
         cli_args.append("--skip_preproc")
     if skip_snp_calling:
         cli_args.append("--skip_snp_calling")
+    if just_codon_bias:
+        cli_args.append("--just_codon_bias")
 
     print("Running MetaPop on Modal with args:")
     print("  metapop", " ".join(cli_args))
