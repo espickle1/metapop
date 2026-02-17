@@ -5,14 +5,17 @@ Runs the MetaPop metagenomics pipeline on Modal (modal.com) as a series of
 right-sized cloud functions. No existing MetaPop code is modified.
 
 Usage:
-    # Upload data to Modal Volume
-    modal volume put metapop-data ./local_bams /bams
-    modal volume put metapop-data ./local_refs /refs
+    # Upload BAM directory and reference FASTA to Modal Volume ("metapop-data").
+    # Paths after the volume name are relative to the volume root.
+    # The volume is mounted at /data in the container, so /bams -> /data/bams.
+    modal volume put metapop-data /path/to/bam_dir /bams
+    modal volume put metapop-data /path/to/ref_fastas /refs
 
-    # Run full pipeline
+    # Run full pipeline.
+    # Use /data/... paths because that is where the volume is mounted.
     modal run modal_app.py --input-samples /data/bams --reference /data/refs --output /data/results --threads 8
 
-    # Download results
+    # Download results (volume-relative path, not container path)
     modal volume get metapop-data /results ./local_results
 """
 
@@ -39,7 +42,7 @@ metapop_image = (
         "seaborn>=0.11.0",
         "scikit-learn>=0.24.0",
     )
-    .add_local_dir(".", remote_path="/root/metapop_src", ignore=[".git", "toy_dataset", "notebooks", "__pycache__"])
+    .add_local_dir(".", remote_path="/root/metapop_src", copy=True, ignore=[".git", "toy_dataset", "notebooks", "__pycache__"])
     .run_commands("cd /root/metapop_src && pip install .")
 )
 
