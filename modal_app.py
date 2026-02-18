@@ -7,16 +7,16 @@ right-sized cloud functions. No existing MetaPop code is modified.
 Usage:
     # Upload BAM directory and reference FASTA to Modal Volume ("metapop-data").
     # Paths after the volume name are relative to the volume root.
-    # The volume is mounted at /data in the container, so /bams -> /data/bams.
+    # The volume is mounted at /mnt/metapop-data in the container (matching modal shell).
     modal volume put metapop-data /path/to/bam_dir /bams
     modal volume put metapop-data /path/to/ref_fastas /refs
 
     # Run full pipeline (all MetaPop flags are passed through).
-    # Use /data/... paths because that is where the volume is mounted.
-    modal run modal_app.py --input-samples /data/bams --reference /data/refs --output /data/results --threads 8
+    # Use /mnt/metapop-data/... paths because that is where the volume is mounted.
+    modal run modal_app.py --input-samples /mnt/metapop-data/bams --reference /mnt/metapop-data/refs --output /mnt/metapop-data/results --threads 8
 
     # Run with preprocessing only
-    modal run modal_app.py --input-samples /data/bams --reference /data/refs --output /data/results --preprocess-only
+    modal run modal_app.py --input-samples /mnt/metapop-data/bams --reference /mnt/metapop-data/refs --output /mnt/metapop-data/results --preprocess-only
 
     # Download results (volume-relative path, not container path)
     modal volume get metapop-data /results ./local_results
@@ -50,7 +50,7 @@ metapop_image = (
 )
 
 vol = modal.Volume.from_name("metapop-data", create_if_missing=True)
-VOLUME_MOUNT = "/data"
+VOLUME_MOUNT = "/mnt/metapop-data"
 
 # ---------------------------------------------------------------------------
 # Stage 1: Setup — directory prep, combine FASTAs, gene calling, MAG log
@@ -333,7 +333,7 @@ def main(
     reference: str = "",
     genes: str = "",
     norm: str = "",
-    output: str = "/data/results",
+    output: str = "/mnt/metapop-data/results",
     threads: int = 8,
     # Filter options
     id_min: float = 95,
