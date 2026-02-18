@@ -11,9 +11,12 @@ Usage:
     modal volume put metapop-data /path/to/bam_dir /bams
     modal volume put metapop-data /path/to/ref_fastas /refs
 
-    # Run full pipeline.
+    # Run full pipeline (all MetaPop flags are passed through).
     # Use /data/... paths because that is where the volume is mounted.
     modal run modal_app.py --input-samples /data/bams --reference /data/refs --output /data/results --threads 8
+
+    # Run with preprocessing only
+    modal run modal_app.py --input-samples /data/bams --reference /data/refs --output /data/results --preprocess-only
 
     # Download results (volume-relative path, not container path)
     modal volume get metapop-data /results ./local_results
