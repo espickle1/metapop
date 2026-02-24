@@ -178,7 +178,7 @@ def preprocess(config: dict, setup_result: dict):
 # ---------------------------------------------------------------------------
 # Stage 3: Variant calling — identify SNPs, correct consensus, codon bias
 # ---------------------------------------------------------------------------
-@app.function(image=metapop_image, volumes={VOLUME_MOUNT: vol}, cpu=8, memory=16384, timeout=7200)
+@app.function(image=metapop_image, volumes={VOLUME_MOUNT: vol}, cpu=8, memory=32768, timeout=7200)
 def call_variants(config: dict, setup_result: dict) -> dict:
     """Call variant positions, correct reference bases, compute codon bias."""
     vol.reload()

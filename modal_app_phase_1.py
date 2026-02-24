@@ -54,7 +54,7 @@ VOLUME_MOUNT = "/mnt/metapop-data"
 # ---------------------------------------------------------------------------
 # Single Modal function: run the entire MetaPop pipeline
 # ---------------------------------------------------------------------------
-@app.function(image=metapop_image, volumes={VOLUME_MOUNT: vol}, cpu=8, memory=16384, timeout=14400)
+@app.function(image=metapop_image, volumes={VOLUME_MOUNT: vol}, cpu=8, memory=32768, timeout=14400)
 def run_metapop(cli_args: list[str]):
     """Run the full MetaPop pipeline by invoking main() with the given CLI args."""
     vol.reload()

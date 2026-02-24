@@ -73,15 +73,16 @@ def call_variant_positions(directory, ref_fasta, min_obs, min_qual, min_pct, thr
 		vcf_commands.append([reads_with_paths[i], outputs[i], ref_fasta, directory+"/MetaPop/ploidy.txt", min_qual])
 	
 	pool = multiprocessing.Pool(min(threads, num_samps))
-	
+
 	timer = datetime.now()
 	printable_time = timer.strftime(time_format)
 	print("Calling variants starting at:", printable_time)
-	
+
 	called_snps = pool.map(create_vcfs, vcf_commands)
-	
+
 	pool.close()
-	
+	pool.join()
+
 	#Cleanup
 	os.remove(directory+"/MetaPop/ploidy.txt")
 		
@@ -133,9 +134,17 @@ def call_variant_positions(directory, ref_fasta, min_obs, min_qual, min_pct, thr
 	printable_time = timer.strftime(time_format)
 	print("Refining SNP calls starting at:", printable_time)
 
-	pool = multiprocessing.Pool(min(threads, num_samps), initializer=snp_refinement_initializer, initargs = (_all_variant_positions,))
-	pool.map(pileup, variant_commands)
+	pileup_workers = min(max(threads // 2, 1), num_samps)
+	pool = multiprocessing.Pool(pileup_workers, initializer=snp_refinement_initializer, initargs = (_all_variant_positions,))
+	try:
+		pool.map(pileup, variant_commands)
+	except Exception as e:
+		print(f"Error during SNP refinement: {e}")
+		pool.terminate()
+		pool.join()
+		raise
 	pool.close()
+	pool.join()
 
 	consensus, snp_inputs = choose_consensus(directory, ref_sample)
 
@@ -211,41 +220,45 @@ def pileup(pileup_command):
 	mpileup_call = ["samtools", "mpileup", "--skip-indels", "-f", reference_genomes, read]
 	
 	pile_stream = subprocess.Popen(mpileup_call, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
-	
-	for line in pile_stream.stdout:
-	
-		segs = line.strip().decode().split("\t")
-		contig = segs[0]
-		#First word only
-		contig = contig.split()[0]
-		
-		pos = int(segs[1])
-		#All variant positions passed as a pool init explicitly in 0.0.50
-		if contig in _all_variant_positions:
-			if pos in _all_variant_positions[contig]:
-				#Just make sure.
-				refbase = segs[2].upper()
-				piled_bases = segs[4]
-				
-				#mpileup encodes reference base as . or , for main, complement strand matches
-				dot_comma_ct = piled_bases.count(",") + piled_bases.count(".")
-				a_ct = piled_bases.count("a") + piled_bases.count("A")
-				t_ct = piled_bases.count("t") + piled_bases.count("T")
-				c_ct = piled_bases.count("c") + piled_bases.count("C")
-				g_ct = piled_bases.count("g") + piled_bases.count("G")
-				
-				if refbase == "A":
-					a_ct += dot_comma_ct
-				if refbase == "T":
-					t_ct += dot_comma_ct
-				if refbase == "C":
-					c_ct += dot_comma_ct
-				if refbase == "G":
-					g_ct += dot_comma_ct
-				
-				print(contig, pos, a_ct, t_ct, c_ct, g_ct, sep = "\t", file = output_pile)
-				counter += 1
-	
+
+	try:
+		for line in pile_stream.stdout:
+
+			segs = line.strip().decode().split("\t")
+			contig = segs[0]
+			#First word only
+			contig = contig.split()[0]
+
+			pos = int(segs[1])
+			#All variant positions passed as a pool init explicitly in 0.0.50
+			if contig in _all_variant_positions:
+				if pos in _all_variant_positions[contig]:
+					#Just make sure.
+					refbase = segs[2].upper()
+					piled_bases = segs[4]
+
+					#mpileup encodes reference base as . or , for main, complement strand matches
+					dot_comma_ct = piled_bases.count(",") + piled_bases.count(".")
+					a_ct = piled_bases.count("a") + piled_bases.count("A")
+					t_ct = piled_bases.count("t") + piled_bases.count("T")
+					c_ct = piled_bases.count("c") + piled_bases.count("C")
+					g_ct = piled_bases.count("g") + piled_bases.count("G")
+
+					if refbase == "A":
+						a_ct += dot_comma_ct
+					if refbase == "T":
+						t_ct += dot_comma_ct
+					if refbase == "C":
+						c_ct += dot_comma_ct
+					if refbase == "G":
+						g_ct += dot_comma_ct
+
+					print(contig, pos, a_ct, t_ct, c_ct, g_ct, sep = "\t", file = output_pile)
+					counter += 1
+	finally:
+		pile_stream.stdout.close()
+		pile_stream.wait()
+
 	output_pile.close()
 		
 	if counter == 0:

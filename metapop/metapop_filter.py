@@ -101,6 +101,7 @@ def filt(files, command_base, b_d_base, threads, mag_dict, length_dict, ref_file
 	pool = multiprocessing.Pool(min(threads, len(md_files)))
 	md_filled = pool.map(fill_mdz, md_files)
 	pool.close()
+	pool.join()
 	
 	for sample in md_filled:
 		#base name based on mdz file, now
@@ -166,7 +167,8 @@ def filt(files, command_base, b_d_base, threads, mag_dict, length_dict, ref_file
 	print("Filtering genomes. Started at:", printable_time)
 	p.map(parse_reads, commands)
 	p.close()
-	
+	p.join()
+
 	timer = datetime.now()
 	printable_time = timer.strftime(time_format)
 	print("MetaPop preprocessing finished at:", printable_time)

@@ -216,9 +216,13 @@ def gene_calls(joint_fasta, output_directory_base):
 def count_reads(file):
 
 	samtools_count = ["samtools", "view", "-c", file]
-	link = subprocess.Popen(samtools_count, stdout = subprocess.PIPE)
-	count = int(link.stdout.readline())
-	return count
+	link = subprocess.Popen(samtools_count, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+	output = link.stdout.readline().strip()
+	link.wait()
+	if not output:
+		print(f"Warning: Could not count reads in {os.path.basename(file)}")
+		return 0
+	return int(output)
 		
 def produce_default_normalization_file(directory_base, sample_path, threads):
 
@@ -227,8 +231,8 @@ def produce_default_normalization_file(directory_base, sample_path, threads):
 	if not os.path.exists(norm_file_path):
 
 		print("Producing read counts for normalization... ", end = "", flush = True)
-		#Get file read counts
-		samples = os.listdir(sample_path)
+		#Get file read counts - filter to .bam files only (exclude .bai index files, etc.)
+		samples = [f for f in os.listdir(sample_path) if f.lower().endswith('.bam')]
 		for i in range(0, len(samples)):
 			samples[i] = os.path.normpath(sample_path + "/" + samples[i])
 		

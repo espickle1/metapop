@@ -240,6 +240,101 @@ metapop --input_samples ./bams --reference ./refs --output ./results \
 
 ---
 
+## Running on Modal (Cloud)
+
+MetaPop can run on [Modal](https://modal.com) for large datasets that exceed local or Colab resources. Two deployment options are available:
+
+- **`modal_app.py`** (Multi-stage) — Splits the pipeline into 6 independent stages with checkpointing. Supports recovery from partial runs.
+- **`modal_app_phase_1.py`** (Monolithic) — Runs the entire pipeline as a single function. Simpler, but no partial recovery.
+
+### Prerequisites
+
+```bash
+pip install modal
+modal setup   # Authenticate with your Modal account
+```
+
+### Upload Data to Modal Volume
+
+MetaPop uses a Modal Volume named `metapop-data` for persistent storage. Upload your BAM and reference files first:
+
+```bash
+# Upload BAM directory
+modal volume put metapop-data /path/to/local/bams /bams
+
+# Upload reference FASTA directory
+modal volume put metapop-data /path/to/local/refs /refs
+```
+
+### Run the Pipeline
+
+**Multi-stage (recommended):**
+```bash
+modal run modal_app.py \
+    --input-samples /mnt/metapop-data/bams \
+    --reference /mnt/metapop-data/refs \
+    --output /mnt/metapop-data/results \
+    --threads 8
+```
+
+**Monolithic:**
+```bash
+modal run modal_app_phase_1.py \
+    --input-samples /mnt/metapop-data/bams \
+    --reference /mnt/metapop-data/refs \
+    --output /mnt/metapop-data/results \
+    --threads 8
+```
+
+All the same CLI flags from the Command Line Usage section above are supported (e.g., `--id-min`, `--min-cov`, `--no-micro`, etc.). Note: Modal uses hyphens (`--input-samples`) rather than underscores.
+
+### Recovering from Partial Runs (Multi-stage Only)
+
+The multi-stage pipeline (`modal_app.py`) checkpoints results to the Modal Volume after each stage completes. If a stage crashes, you can skip already-completed stages on re-run:
+
+| Flag | Effect |
+|------|--------|
+| `--skip-preproc` | Skip Stage 2 (preprocessing). Use when preprocessing completed but a later stage failed. |
+| `--skip-snp-calling` | Skip Stage 3 (variant calling). Use when SNP calling completed but microdiversity failed. |
+| `--no-micro` | Skip Stages 3+4 entirely (variant calling + microdiversity). |
+| `--no-macro` | Skip Stage 5 (macrodiversity). |
+| `--no-viz` | Skip Stage 6 (visualizations). |
+| `--preprocess-only` | Run only Stages 1+2, then stop. |
+| `--viz-only` | Run only Setup + Visualizations (requires prior completed run). |
+
+**Example: Resume after a Stage 3 crash:**
+```bash
+modal run modal_app.py \
+    --input-samples /mnt/metapop-data/bams \
+    --reference /mnt/metapop-data/refs \
+    --output /mnt/metapop-data/results \
+    --skip-preproc \
+    --threads 8
+```
+
+This works because each stage saves its output to the volume via `vol.commit()`. When you re-run with `--skip-preproc`, the pipeline reads the already-committed preprocessing results and picks up at Stage 3.
+
+**Note:** The monolithic wrapper (`modal_app_phase_1.py`) does NOT support partial recovery — it runs all stages in a single function and only commits at the very end.
+
+### Download Results
+
+```bash
+modal volume get metapop-data /results ./local_results
+```
+
+### Pipeline Stages (Multi-stage)
+
+| Stage | Name | CPU | Memory | Timeout | Description |
+|-------|------|-----|--------|---------|-------------|
+| 1 | Setup | 2 | 4 GB | 30 min | Directory prep, combine FASTAs, gene calling |
+| 2 | Preprocessing | 8 | 16 GB | 4 hrs | Filter reads by identity, length, coverage, depth |
+| 3 | Variant Calling | 8 | 32 GB | 2 hrs | Identify SNPs, correct consensus, codon bias |
+| 4 | Microdiversity | 8 | 8 GB | 2 hrs | Linked SNPs, Fisher test, pi/theta/FST |
+| 5 | Macrodiversity | 4 | 4 GB | 1 hr | Abundance, alpha/beta diversity |
+| 6 | Visualizations | 2 | 4 GB | 30 min | Summary plots |
+
+---
+
 ## Input File Formats
 
 ### BAM Files
