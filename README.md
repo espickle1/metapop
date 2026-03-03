@@ -11,7 +11,8 @@ A pipeline for macro- and micro-diversity analyses of metagenomic-derived popula
 This fork replaces R dependencies with pure Python implementations, making the pipeline:
 
 - **Easier to install** - No R packages required
-- **Cloud-ready** - Optimized for Google Colab with interactive notebook
+- **Cloud-ready** - Three deployment options: Google Colab (interactive), Modal (serverless), local (command-line)
+- **Resilient to failures** - Multi-stage Modal pipeline with checkpointing and recovery support
 - **More reliable** - Fixed path handling issues for cross-platform compatibility
 - **Faster setup** - Fewer dependencies, simpler installation
 
@@ -60,7 +61,22 @@ MetaPop analyzes metagenomic data to assess diversity at both the sample level (
 
 ---
 
-## Quick Start: Google Colab (Recommended)
+## Choosing Your Deployment Option
+
+| Option | Best For | Setup Time | Cost | Data Size |
+|--------|----------|------------|------|-----------|
+| **Google Colab** | Quick testing, <50 GB data, interactive use | 2 min | Free (with Pro: $10/mo) | Up to 50 GB (Pro: 100 GB) |
+| **Modal** | Large datasets (>100 GB), automated runs, production | 10 min | $0.50/GPU-hour | Unlimited (volume-based) |
+| **Local** | Full control, GPU available, small data | 5 min | Depends on hardware | As much as your machine can hold |
+
+**Quick recommendation:**
+- First time? **Colab** (easiest, no setup)
+- Large dataset? **Modal** (recoverable stages, scales to 1TB+)
+- Got a beefy machine? **Local** (full control, fast iteration)
+
+---
+
+## Quick Start: Google Colab (Recommended for First-Time Users)
 
 The easiest way to run MetaPop is through our interactive Colab notebook.
 
@@ -242,33 +258,75 @@ metapop --input_samples ./bams --reference ./refs --output ./results \
 
 ## Running on Modal (Cloud)
 
-MetaPop can run on [Modal](https://modal.com) for large datasets that exceed local or Colab resources. Two deployment options are available:
+MetaPop can run on [Modal](https://modal.com) for large datasets that exceed local or Colab resources. Modal provides serverless cloud compute with persistent storage, ideal for processing multi-gigabyte BAM files without managing infrastructure.
 
-- **`modal_app.py`** (Multi-stage) — Splits the pipeline into 6 independent stages with checkpointing. Supports recovery from partial runs.
-- **`modal_app_phase_1.py`** (Monolithic) — Runs the entire pipeline as a single function. Simpler, but no partial recovery.
+### Modal Deployment Options
 
-### Prerequisites
+Two application files are available for different use cases:
+
+| File | Approach | Stages | Recovery | Best For |
+|------|----------|--------|----------|----------|
+| **`modal_app.py`** | Multi-stage orchestration | 6 independent stages | ✅ Full recovery support | Large datasets, long pipelines |
+| **`modal_app_phase_1.py`** | Monolithic execution | All stages in one function | ❌ No partial recovery | Small-to-medium datasets, simple runs |
+
+**Recommendation:** Use `modal_app.py` for datasets >100 GB. It splits work into checkpointed stages, so a crash at stage 5 won't restart from stage 1.
+
+### Prerequisites & Setup
+
+1. **Install Modal:**
+   ```bash
+   pip install modal
+   ```
+
+2. **Authenticate with Modal:**
+   ```bash
+   modal setup
+   ```
+   This opens a browser window to sign in (free account available at https://modal.com).
+
+3. **Create Modal Volume (one-time):**
+   ```bash
+   modal volume create metapop-data
+   ```
+   This creates persistent cloud storage where your BAM files and results live.
+
+### Data Preparation: Upload to Modal Volume
+
+Modal volumes are persistent cloud storage mounted at `/mnt/` inside functions. Upload your input data:
 
 ```bash
-pip install modal
-modal setup   # Authenticate with your Modal account
-```
-
-### Upload Data to Modal Volume
-
-MetaPop uses a Modal Volume named `metapop-data` for persistent storage. Upload your BAM and reference files first:
-
-```bash
-# Upload BAM directory
+# Create the directory structure in the volume
 modal volume put metapop-data /path/to/local/bams /bams
-
-# Upload reference FASTA directory
 modal volume put metapop-data /path/to/local/refs /refs
 ```
 
-### Run the Pipeline
+**Local directory structure (before upload):**
+```
+~/my_data/
+├── bams/
+│   ├── sample1.bam
+│   ├── sample2.bam
+│   └── ...
+└── refs/
+    └── reference.fasta
+```
 
-**Multi-stage (recommended):**
+**Modal volume structure (after upload):**
+```
+/mnt/metapop-data/
+├── bams/
+│   ├── sample1.bam
+│   ├── sample2.bam
+│   └── ...
+└── refs/
+    └── reference.fasta
+```
+
+### Running the Pipeline
+
+Both `modal_app.py` and `modal_app_phase_1.py` use the same command-line interface. The only difference is whether stages are separate (recoverable) or combined.
+
+**Launch the multi-stage pipeline (recommended):**
 ```bash
 modal run modal_app.py \
     --input-samples /mnt/metapop-data/bams \
@@ -277,7 +335,7 @@ modal run modal_app.py \
     --threads 8
 ```
 
-**Monolithic:**
+**Launch the monolithic pipeline (simpler but no recovery):**
 ```bash
 modal run modal_app_phase_1.py \
     --input-samples /mnt/metapop-data/bams \
@@ -286,23 +344,57 @@ modal run modal_app_phase_1.py \
     --threads 8
 ```
 
-All the same CLI flags from the Command Line Usage section above are supported (e.g., `--id-min`, `--min-cov`, `--no-micro`, etc.). Note: Modal uses hyphens (`--input-samples`) rather than underscores.
+All standard MetaPop CLI flags are supported (e.g., `--id-min 98`, `--min-cov 50`, `--no-micro`). **Note:** Modal uses hyphens (`--input-samples`) rather than underscores (unlike local CLI).
 
-### Recovering from Partial Runs (Multi-stage Only)
+**Full example with parameters:**
+```bash
+modal run modal_app.py \
+    --input-samples /mnt/metapop-data/bams \
+    --reference /mnt/metapop-data/refs \
+    --output /mnt/metapop-data/results \
+    --id-min 96 \
+    --min-cov 30 \
+    --min-dep 15 \
+    --threads 8
+```
 
-The multi-stage pipeline (`modal_app.py`) checkpoints results to the Modal Volume after each stage completes. If a stage crashes, you can skip already-completed stages on re-run:
+### How the Multi-stage Pipeline Works
 
-| Flag | Effect |
-|------|--------|
-| `--skip-preproc` | Skip Stage 2 (preprocessing). Use when preprocessing completed but a later stage failed. |
-| `--skip-snp-calling` | Skip Stage 3 (variant calling). Use when SNP calling completed but microdiversity failed. |
-| `--no-micro` | Skip Stages 3+4 entirely (variant calling + microdiversity). |
-| `--no-macro` | Skip Stage 5 (macrodiversity). |
-| `--no-viz` | Skip Stage 6 (visualizations). |
-| `--preprocess-only` | Run only Stages 1+2, then stop. |
-| `--viz-only` | Run only Setup + Visualizations (requires prior completed run). |
+`modal_app.py` executes the pipeline as 6 independent stages, with checkpointing between each:
 
-**Example: Resume after a Stage 3 crash:**
+1. **Setup** — Initialize directories, combine reference FASTAs, run gene prediction (Prodigal)
+2. **Preprocessing** — Filter BAM files by quality, length, coverage, and depth metrics
+3. **Variant Calling** — Identify SNPs via samtools, correct consensus bases, analyze codon bias
+4. **Microdiversity** — Calculate pi, Tajima's D, pN/pS ratios, FST; detect linked SNPs
+5. **Macrodiversity** — Compute normalized abundances, alpha/beta diversity indices
+6. **Visualizations** — Generate summary plots and statistical figures
+
+**Key benefit:** Each stage commits results to the Modal volume via `vol.commit()`. If a stage fails, you can resume from the previous successful stage instead of restarting the entire pipeline.
+
+### Recovery from Partial Runs
+
+If a stage crashes (e.g., due to worker preemption or timeout), resume by skipping already-completed stages:
+
+**Stage completion markers** (checked by the pipeline):
+- Stage 1 always re-runs (cheap, regenerates paths)
+- Stage 2: Check for `04.Depth_per_Pos/` directory
+- Stage 3: Check for `05.Variant_Calls/` directory
+- Stage 4: Check for `10.Microdiversity/` directory
+- Stage 5: Check for `11.Macrodiversity/` directory
+
+**Recovery flags:**
+
+| Flag | Skips | Use When |
+|------|-------|----------|
+| `--skip-preproc` | Stage 2 | Preprocessing completed but later stage failed |
+| `--skip-snp-calling` | Stage 3 | SNP calling completed but microdiversity failed |
+| `--no-micro` | Stages 3+4 | Only want macrodiversity results |
+| `--no-macro` | Stage 5 | Only want microdiversity results |
+| `--no-viz` | Stage 6 | Skip visualization generation (fastest) |
+| `--preprocess-only` | Stages 3+ | Only run preprocessing and stop |
+| `--viz-only` | Stages 2-5 | Only generate visualizations (requires prior run) |
+
+**Example: Resume after stage 3 (variant calling) crashes:**
 ```bash
 modal run modal_app.py \
     --input-samples /mnt/metapop-data/bams \
@@ -311,27 +403,57 @@ modal run modal_app.py \
     --skip-preproc \
     --threads 8
 ```
+This skips preprocessing and variant calling, resuming at microdiversity.
 
-This works because each stage saves its output to the volume via `vol.commit()`. When you re-run with `--skip-preproc`, the pipeline reads the already-committed preprocessing results and picks up at Stage 3.
-
-**Note:** The monolithic wrapper (`modal_app_phase_1.py`) does NOT support partial recovery — it runs all stages in a single function and only commits at the very end.
+**Monolithic pipeline note:** `modal_app_phase_1.py` has no partial recovery because it runs all stages in a single Modal function and only commits at the very end. If it crashes midway, you must restart entirely.
 
 ### Download Results
 
+Once the pipeline completes, download results from the Modal volume to your local machine:
+
 ```bash
+# Download the entire results directory
 modal volume get metapop-data /results ./local_results
+
+# Or download just specific files
+modal volume get metapop-data /results/MetaPop/11.Macrodiversity ./local_macro_results
 ```
 
-### Pipeline Stages (Multi-stage)
+Results are organized identically to local runs (see [Output Files](#output-files) section below).
+
+### Pipeline Stages Reference (Multi-stage)
 
 | Stage | Name | CPU | Memory | Timeout | Description |
 |-------|------|-----|--------|---------|-------------|
-| 1 | Setup | 2 | 4 GB | 30 min | Directory prep, combine FASTAs, gene calling |
-| 2 | Preprocessing | 8 | 16 GB | 4 hrs | Filter reads by identity, length, coverage, depth |
-| 3 | Variant Calling | 8 | 32 GB | 2 hrs | Identify SNPs, correct consensus, codon bias |
-| 4 | Microdiversity | 8 | 8 GB | 2 hrs | Linked SNPs, Fisher test, pi/theta/FST |
-| 5 | Macrodiversity | 4 | 4 GB | 1 hr | Abundance, alpha/beta diversity |
-| 6 | Visualizations | 2 | 4 GB | 30 min | Summary plots |
+| 1 | Setup | 2 cores | 4 GB | 30 min | Directory structure, combine FASTAs, Prodigal gene calling |
+| 2 | Preprocessing | 8 cores | 16 GB | 4 hrs | Filter reads by identity, length, coverage, depth metrics |
+| 3 | Variant Calling | 8 cores | 32 GB | 2 hrs | SNP identification via samtools, consensus correction, codon bias |
+| 4 | Microdiversity | 8 cores | 8 GB | 2 hrs | Linked SNPs, Fisher's exact test, pi/theta/Tajima's D/FST |
+| 5 | Macrodiversity | 4 cores | 4 GB | 1 hr | Normalized abundances, alpha/beta diversity indices |
+| 6 | Visualizations | 2 cores | 4 GB | 30 min | Summary plots, heatmaps, PCoA figures |
+
+### Troubleshooting Modal-Specific Issues
+
+**"Worker interrupted due to preemption"**
+- This happens when Modal reclaims a spot instance (temporary cloud server)
+- **Solution:** Use the recovery flags above (e.g., `--skip-preproc`) to resume from the last completed stage
+- **Mitigation:** The multi-stage design makes preemption less painful — only the current stage restarts
+
+**"Volume not found: metapop-data"**
+- The Modal volume doesn't exist in your Modal workspace
+- **Solution:** Create it with `modal volume create metapop-data`
+
+**"No such file or directory: /mnt/metapop-data/bams"**
+- Data wasn't uploaded to the volume or paths are incorrect
+- **Solution:** Verify with `modal volume ls metapop-data` and upload with `modal volume put`
+
+**Stage times out (4 hrs exceeded for preprocessing, etc.)**
+- Large BAM files or too-strict filtering parameters
+- **Solution:** Try looser parameters or reduce dataset size; monitor via `modal app logs modal_app.py`
+
+**"Out of memory" during variant calling**
+- Stage 3 processes all BAM files in parallel; large files + tight parameters = high memory usage
+- **Solution:** Reduce `--threads` or use `--preprocess-only` to identify problematic samples first
 
 ---
 
